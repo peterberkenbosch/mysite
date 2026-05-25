@@ -2,11 +2,11 @@
 service: mysite
 
 # Name of the container image.
-image: peter/mysite
+image: peterberkenbosch/mysite
 
 # Deploy to these servers.
 servers:
-  - 192.168.0.1
+  - 159.69.105.98
 
 # Use GIT_URL from secrets to auto-update site via git pulls.
 env:
@@ -18,6 +18,8 @@ registry:
   server: localhost:5555
 
 proxy:
+  ssl: true
+  host: mysite.nex13.com
   healthcheck:
     path: /up
 
