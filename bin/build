@@ -1,0 +1,102 @@
+#!/usr/bin/env ruby
+
+require "kramdown"
+require "kramdown-parser-gfm"
+require "rouge"
+require "yaml"
+require "date"
+require "fileutils"
+require "cgi"
+
+ROOT       = File.expand_path("..", __dir__)
+SOURCE_DIR = File.join(ROOT, "content", "writing")
+OUTPUT_DIR = File.join(ROOT, "public", "writing")
+
+def parse_post(path)
+  raw = File.read(path, encoding: "UTF-8")
+  match = raw.match(/\A---\s*\n(?<frontmatter>.*?)\n---\s*\n(?<body>.*)\z/m)
+  abort "✗ #{path}: missing YAML frontmatter" unless match
+
+  meta = YAML.safe_load(match[:frontmatter], permitted_classes: [Date])
+  meta["slug"] ||= File.basename(path, ".md").sub(/\A\d{4}-\d{2}-\d{2}-/, "")
+  meta["date"] = Date.parse(meta["date"].to_s)
+  meta["body"] = match[:body]
+  meta
+end
+
+def render_markdown(body)
+  Kramdown::Document.new(
+    body,
+    input: "GFM",
+    syntax_highlighter: "rouge",
+    syntax_highlighter_opts: { css_class: "highlight" }
+  ).to_html
+end
+
+def h(str)
+  CGI.escapeHTML(str.to_s)
+end
+
+def render_post_page(meta)
+  body_html = render_markdown(meta["body"])
+  date_human = meta["date"].strftime("%-d %B %Y")
+
+  <<~HTML
+    <!--# set var="title" value="#{h(meta["title"])}" -->
+    <!--# include file="/_includes/head.html" -->
+
+    <main>
+      <article>
+        <p><time datetime="#{meta["date"].iso8601}">#{date_human}</time></p>
+        <h1>#{h(meta["title"])}</h1>
+        #{body_html}
+      </article>
+      <p><a href="/writing">← All writing</a></p>
+    </main>
+
+    <!--# include file="/_includes/footer.html" -->
+  HTML
+end
+
+def render_index_page(posts)
+  rows = posts.map do |meta|
+    date_short = meta["date"].strftime("%-d %b %Y")
+    %Q(
+      <article>
+        <time datetime="#{meta["date"].iso8601}">#{date_short}</time>
+        <h2><a href="/writing/#{meta["slug"]}">#{h(meta["title"])}</a></h2>
+        <p>#{h(meta["summary"])}</p>
+      </article>
+    )
+  end.join
+
+  <<~HTML
+    <!--# set var="title" value="Writing" -->
+    <!--# include file="/_includes/head.html" -->
+
+    <main>
+      <h1>Writing</h1>
+      #{rows}
+    </main>
+
+    <!--# include file="/_includes/footer.html" -->
+  HTML
+end
+
+# Main
+FileUtils.mkdir_p(OUTPUT_DIR)
+
+posts = Dir.glob(File.join(SOURCE_DIR, "*.md"))
+  .map { |path| parse_post(path) }
+  .reject { |meta| meta["draft"] }
+  .sort_by { |meta| meta["date"] }
+  .reverse
+
+posts.each do |meta|
+  out = File.join(OUTPUT_DIR, "#{meta["slug"]}.html")
+  File.write(out, render_post_page(meta))
+  puts "  ✓ #{meta["slug"]}.html"
+end
+
+File.write(File.join(OUTPUT_DIR, "index.html"), render_index_page(posts))
+puts "  ✓ index.html (#{posts.length} posts)"
