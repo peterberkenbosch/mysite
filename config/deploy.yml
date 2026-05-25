@@ -1,0 +1,26 @@
+# Name of your site. Used to uniquely configure containers.
+service: mysite
+
+# Name of the container image.
+image: peter/mysite
+
+# Deploy to these servers.
+servers:
+  - 192.168.0.1
+
+# Use GIT_URL from secrets to auto-update site via git pulls.
+env:
+  secret:
+    - GIT_URL
+
+# Use Kamal's local registry.
+registry:
+  server: localhost:5555
+
+proxy:
+  healthcheck:
+    path: /up
+
+# Use a different ssh user than root
+# ssh:
+#   user: app
